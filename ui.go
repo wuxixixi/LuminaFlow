@@ -271,8 +271,59 @@ func (ui *UI) setupUI() {
 
 // setupDragAndDrop enables drag and drop functionality
 func (ui *UI) setupDragAndDrop() {
-	// Fyne window drag and drop is handled through the desktop extension
-	// This is a placeholder for future implementation when desktop extension is available
+	ui.window.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
+		if len(uris) == 0 {
+			return
+		}
+
+		if ui.processor.IsRunning() {
+			dialog.ShowInformation("提示", "请等待当前处理完成后再添加图片", ui.window)
+			return
+		}
+
+		var images []ImageInfo
+		for _, uri := range uris {
+			// Check if it's a file URI
+			if uri.Scheme() != "file" {
+				continue
+			}
+
+			path := uri.Path()
+
+			// Check if it's a directory
+			info, err := os.Stat(path)
+			if err != nil {
+				continue
+			}
+
+			if info.IsDir() {
+				// Scan directory for images
+				dirImages, err := ScanImages(path)
+				if err != nil {
+					continue
+				}
+				images = append(images, dirImages...)
+			} else {
+				// Check if it's a supported image file
+				ext := strings.ToLower(filepath.Ext(path))
+				if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" {
+					imgInfo, err := LoadImageInfo(path)
+					if err != nil {
+						Warn("Failed to get image info for %s: %v", path, err)
+						continue
+					}
+					images = append(images, *imgInfo)
+				}
+			}
+		}
+
+		if len(images) == 0 {
+			dialog.ShowInformation("提示", "没有找到支持的图片文件\n\n支持格式: JPG, PNG, WEBP", ui.window)
+			return
+		}
+
+		ui.addImages(images)
+	})
 }
 
 func (ui *UI) Show() {
@@ -854,10 +905,15 @@ func (ui *UI) listItemCount() int {
 
 // contextListItem is a container that supports right-click context menu
 type contextListItem struct {
-	*fyne.Container
-	ui      *UI
-	index   int
-	widgets *listItemWidgets
+	widget.BaseWidget
+	container *fyne.Container
+	ui        *UI
+	index     int
+}
+
+// CreateRenderer implements fyne.Widget interface
+func (c *contextListItem) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(c.container)
 }
 
 // MouseDown handles right-click to show context menu
@@ -1070,7 +1126,13 @@ func (ui *UI) listItemCreate() fyne.CanvasObject {
 	ui.widgetsMutex.Unlock()
 
 	Info("listItemCreate: returning container")
-	return item
+	// Wrap in contextListItem for right-click menu support
+	ctxItem := &contextListItem{
+		container: item,
+		ui:        ui,
+	}
+	ctxItem.ExtendBaseWidget(ctxItem)
+	return ctxItem
 }
 
 // listItemWidgets holds references to all widgets in a list item
@@ -1101,10 +1163,18 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 
 	Info("listItemUpdate: index=%d, file=%s", index, task.Image.Filename)
 
-	// Get the container
-	item, ok := obj.(*fyne.Container)
-	if !ok {
-		Info("listItemUpdate: type assertion to Container failed, obj is %T", obj)
+	// Update index in contextListItem for context menu and get inner container
+	var innerContainer *fyne.Container
+	switch v := obj.(type) {
+	case *contextListItem:
+		v.index = index
+		innerContainer = v.container
+		Info("listItemUpdate: got contextListItem, container has %d objects", len(innerContainer.Objects))
+	case *fyne.Container:
+		innerContainer = v
+		Info("listItemUpdate: got fyne.Container, has %d objects", len(innerContainer.Objects))
+	default:
+		Info("listItemUpdate: type assertion failed, obj is %T", obj)
 		return
 	}
 
@@ -1145,9 +1215,11 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 			}
 		}
 	}
-	findWidgets(item)
+	findWidgets(innerContainer)
 
 	// Update text labels
+	Info("listItemUpdate: found widgets - filenameLabel: %v, dimensionsLabel: %v, stateLabel: %v, thumb: %v, selectBtn: %v",
+		filenameLabel != nil, dimensionsLabel != nil, stateLabel != nil, thumb != nil, selectBtn != nil)
 	if filenameLabel != nil {
 		filenameLabel.SetText(task.Image.Filename)
 	}
@@ -1227,6 +1299,7 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 		}
 		if progress != nil {
 			progress.Show()
+			progress.SetValue(0.5) // API doesn't provide percentage, show 50%
 		}
 	case StateDownloading:
 		if stateLabel != nil {
@@ -1235,11 +1308,16 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 		}
 		if progress != nil {
 			progress.Show()
+			progress.SetValue(0.8) // Downloading, show 80%
 		}
 	case StateDone:
 		if stateLabel != nil {
 			stateLabel.SetText("已完成")
 			stateLabel.Importance = widget.SuccessImportance
+		}
+		if progress != nil {
+			progress.SetValue(1.0)
+			progress.Hide()
 		}
 		if task.OutputPath != "" && openBtn != nil {
 			openBtn.Show()
@@ -1265,6 +1343,9 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 		if stateLabel != nil {
 			stateLabel.SetText(fmt.Sprintf("失败: %s", errorMsg))
 			stateLabel.Importance = widget.DangerImportance
+		}
+		if progress != nil {
+			progress.Hide()
 		}
 		if retryBtn != nil {
 			retryBtn.Show()
