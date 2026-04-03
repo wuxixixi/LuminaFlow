@@ -1,6 +1,6 @@
 # LuminaFlow
 
-**版本**: 1.3.1
+**版本**: 1.4.0
 
 LuminaFlow 是一款基于 AI 的图片转视频工具，使用 DMXAPI（MiniMax Hailuo 2.3）API 将静态图片转换为动态视频。支持批量处理，提供直观的图形界面和命令行两种使用方式。
 
@@ -101,6 +101,22 @@ LuminaFlow 是一款基于 AI 的图片转视频工具，使用 DMXAPI（MiniMax
 - 打开视频/打开视频目录
 - 重试（失败任务）
 - 从列表删除
+
+### 快捷键
+
+支持以下键盘快捷键：
+
+| 快捷键 | 功能 |
+|--------|------|
+| Ctrl+O | 打开文件夹 |
+| Ctrl+A | 全选 |
+| Ctrl+D | 全不选 |
+| Ctrl+Enter | 开始转换 |
+| Escape | 停止转换 |
+| F1 | 打开帮助 |
+| F5 | 刷新列表 |
+| Ctrl+Delete | 清空列表 |
+| Ctrl+, | 打开设置 |
 
 ## 设置说明
 
@@ -225,6 +241,9 @@ curl http://localhost:8080/api/status/任务ID
 4. **下载**: 获取视频文件并保存到本地
 
 ## 更新日志
+
+### v1.4.0
+- 新增：键盘快捷键支持（Ctrl+O、Ctrl+A、Ctrl+D、Ctrl+Enter、Escape、F1、F5 等）
 
 ### v1.3.1
 - 修复：发布包中包含 README.md 文件

@@ -265,6 +265,69 @@ func (ui *UI) setupUI() {
 	// Start background tasks
 	go ui.eventListener()
 	go ui.updateLoop()
+
+	// Setup keyboard shortcuts
+	ui.setupShortcuts()
+}
+
+// setupShortcuts configures keyboard shortcuts
+func (ui *UI) setupShortcuts() {
+	// Ctrl+O: Open folder
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyO, Modifier: fyne.KeyModifierControl}, func(_ fyne.Shortcut) {
+		ui.onBrowseFolder()
+	})
+
+	// Ctrl+A: Select all
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl}, func(_ fyne.Shortcut) {
+		ui.onSelectAll()
+	})
+
+	// Ctrl+D: Deselect all
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyD, Modifier: fyne.KeyModifierControl}, func(_ fyne.Shortcut) {
+		ui.onDeselectAll()
+	})
+
+	// Ctrl+Enter: Start conversion
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyReturn, Modifier: fyne.KeyModifierControl}, func(_ fyne.Shortcut) {
+		if ui.processor.IsRunning() {
+			return
+		}
+		if ui.processor.GetSelectedCount() > 0 {
+			ui.onStart()
+		}
+	})
+
+	// Escape: Stop conversion
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEscape, Modifier: 0}, func(_ fyne.Shortcut) {
+		if ui.processor.IsRunning() {
+			ui.onStop()
+		}
+	})
+
+	// F1: Help
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF1, Modifier: 0}, func(_ fyne.Shortcut) {
+		ui.onHelp()
+	})
+
+	// F5: Refresh list
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF5, Modifier: 0}, func(_ fyne.Shortcut) {
+		ui.imageList.Refresh()
+		ui.updateStatusBar()
+	})
+
+	// Ctrl+Delete: Clear list
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyDelete, Modifier: fyne.KeyModifierControl}, func(_ fyne.Shortcut) {
+		if !ui.processor.IsRunning() {
+			ui.onClearList()
+		}
+	})
+
+	// Ctrl+Comma: Settings
+	ui.window.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyComma, Modifier: fyne.KeyModifierControl}, func(_ fyne.Shortcut) {
+		ui.onSettings()
+	})
+
+	Info("Keyboard shortcuts configured")
 }
 
 // setupDragAndDrop enables drag and drop functionality

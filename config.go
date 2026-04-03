@@ -11,7 +11,7 @@ import (
 // Application version
 const (
 	AppName    = "LuminaFlow"
-	AppVersion = "1.3.2"
+	AppVersion = "1.4.0"
 )
 
 // Config holds all application settings
