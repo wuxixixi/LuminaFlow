@@ -92,14 +92,15 @@ jobs:
       - name: Create ZIP files
         run: |
           cd release
+          cp ../README.md README.md
           if [ -f LuminaFlow_windows.exe ]; then
-            zip LuminaFlow_windows.zip LuminaFlow_windows.exe
+            zip LuminaFlow_windows.zip LuminaFlow_windows.exe README.md
           fi
           if [ -f LuminaFlow_macos ]; then
-            zip LuminaFlow_macos.zip LuminaFlow_macos
+            zip LuminaFlow_macos.zip LuminaFlow_macos README.md
           fi
           if [ -f LuminaFlow_linux ]; then
-            zip LuminaFlow_linux.zip LuminaFlow_linux
+            zip LuminaFlow_linux.zip LuminaFlow_linux README.md
           fi
           ls -la
 
