@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp" // Register webp decoder
 )
 
 // ImageInfo holds validated image information

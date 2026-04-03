@@ -199,7 +199,7 @@ func (ui *UI) setupUI() {
 	)
 
 	// Image list
-	ui.emptyLabel = widget.NewLabel("请点击「选择文件夹」或「添加图片」来加载图片\n\n支持格式: JPG, PNG, WEBP\n\n也可以直接拖拽图片到此处")
+	ui.emptyLabel = widget.NewLabel("请点击「选择文件夹」或「添加图片」来加载图片\n\n支持格式: JPG, PNG, WEBP\n\n也可以直接拖拽图片到此处\n\n⚠️ 使用前请先在「设置」中配置 DMXAPI Key")
 	ui.emptyLabel.Alignment = fyne.TextAlignCenter
 	ui.emptyLabel.Importance = widget.LowImportance
 
@@ -684,8 +684,10 @@ func (ui *UI) stopProcessing(status string) {
 	ui.btnOpenFolder.Enable()
 	ui.btnAddImages.Enable()
 	ui.btnClear.Enable()
-	ui.progressBar.Hide()
-	ui.progressLabel.SetText("")
+	
+	// Set progress to 100% and keep it visible
+	ui.progressBar.SetValue(1.0)
+	ui.progressLabel.SetText("100%")
 	ui.statusLabel.SetText(status)
 
 	Info("Processing stopped: %s", status)
@@ -696,6 +698,20 @@ func (ui *UI) onSettings() {
 	apiKeyEntry := widget.NewPasswordEntry()
 	apiKeyEntry.SetText(ui.config.APIKey)
 	apiKeyEntry.SetPlaceHolder("输入 DMXAPI API Key")
+
+	// Register link
+	registerLink := widget.NewHyperlink("点击此处注册获取 API Key", nil)
+	registerLink.OnTapped = func() {
+		ui.openURL("https://www.dmxapi.cn/register?aff=9jHw")
+	}
+
+	apiKeyRow := container.NewVBox(
+		apiKeyEntry,
+		container.NewHBox(
+			widget.NewLabel("没有账号？"),
+			registerLink,
+		),
+	)
 
 	// Output directory
 	outputDirEntry := widget.NewEntry()
@@ -782,7 +798,7 @@ func (ui *UI) onSettings() {
 	// Form
 	form := dialog.NewForm("设置", "保存", "取消",
 		[]*widget.FormItem{
-			widget.NewFormItem("API Key", apiKeyEntry),
+			widget.NewFormItem("API Key", apiKeyRow),
 			widget.NewFormItem("输出目录", outputDirRow),
 			widget.NewFormItem("并发数", concurrencyRow),
 			widget.NewFormItem("视频时长", durationRow),
@@ -1369,6 +1385,13 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 func (ui *UI) openVideoFile(path string) {
 	Info("Opening video: %s", path)
 	cmd := exec.Command("cmd", "/c", "start", "", path)
+	cmd.Start()
+}
+
+// openURL opens a URL in the system default browser
+func (ui *UI) openURL(url string) {
+	Info("Opening URL: %s", url)
+	cmd := exec.Command("cmd", "/c", "start", "", url)
 	cmd.Start()
 }
 
