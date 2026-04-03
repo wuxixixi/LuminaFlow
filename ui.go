@@ -201,7 +201,6 @@ func (ui *UI) setupUI() {
 	// Image list
 	ui.emptyLabel = widget.NewLabel("请点击「选择文件夹」或「添加图片」来加载图片\n\n支持格式: JPG, PNG, WEBP\n\n也可以直接拖拽图片到此处\n\n⚠️ 使用前请先在「设置」中配置 DMXAPI Key")
 	ui.emptyLabel.Alignment = fyne.TextAlignCenter
-	ui.emptyLabel.Importance = widget.LowImportance
 
 	ui.imageList = widget.NewList(
 		ui.listItemCount,
@@ -222,7 +221,6 @@ func (ui *UI) setupUI() {
 	ui.completedLabel = widget.NewLabel("完成: 0")
 	ui.failedLabel = widget.NewLabel("失败: 0")
 	developerLabel := widget.NewLabel("上海觉测信息科技有限公司")
-	developerLabel.Importance = widget.LowImportance
 
 	statusBar := container.NewHBox(
 		ui.statusLabel,
