@@ -1,0 +1,41 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Environment variables (contains API keys)
+.env
+
+# Output directory
+output/
+
+# Log files
+logs/
+*.log
+
+# IDE and editor directories
+.idea/
+.vscode/
+.claude/
+.qoder/
+
+# Build artifacts
+release/
+dist/
+
+# Test data
+test_images/
+tests/
+data/
+examples/
