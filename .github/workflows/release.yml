@@ -1,0 +1,130 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            ext: .exe
+            artifact: LuminaFlow_windows.exe
+          - os: macos-latest
+            ext: ''
+            artifact: LuminaFlow_macos
+          - os: ubuntu-latest
+            ext: ''
+            artifact: LuminaFlow_linux
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libxkbcommon-dev
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install pkg-config
+
+      - name: Build
+        run: |
+          go build -tags gui -ldflags "-H=windowsgui" -o ${{ matrix.artifact }} .
+        if: matrix.os == 'windows-latest'
+
+      - name: Build (Unix)
+        run: |
+          go build -tags gui -o ${{ matrix.artifact }} .
+        if: matrix.os != 'windows-latest'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Prepare release files
+        run: |
+          mkdir release
+          if [ -f artifacts/LuminaFlow_windows.exe/LuminaFlow_windows.exe ]; then
+            cp artifacts/LuminaFlow_windows.exe/LuminaFlow_windows.exe release/LuminaFlow_windows.exe
+          fi
+          if [ -f artifacts/LuminaFlow_macos/LuminaFlow_macos ]; then
+            cp artifacts/LuminaFlow_macos/LuminaFlow_macos release/LuminaFlow_macos
+          fi
+          if [ -f artifacts/LuminaFlow_linux/LuminaFlow_linux ]; then
+            cp artifacts/LuminaFlow_linux/LuminaFlow_linux release/LuminaFlow_linux
+          fi
+          ls -la release/
+
+      - name: Create ZIP files
+        run: |
+          cd release
+          if [ -f LuminaFlow_windows.exe ]; then
+            zip LuminaFlow_windows.zip LuminaFlow_windows.exe
+          fi
+          if [ -f LuminaFlow_macos ]; then
+            zip LuminaFlow_macos.zip LuminaFlow_macos
+          fi
+          if [ -f LuminaFlow_linux ]; then
+            zip LuminaFlow_linux.zip LuminaFlow_linux
+          fi
+          ls -la
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LuminaFlow ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## LuminaFlow ${{ steps.get_version.outputs.VERSION }}
+            
+            图片转视频工具
+            
+            ### 功能
+            - 批量图片转视频
+            - 拖拽导入图片
+            - 右键菜单（打开视频、再次转换）
+            - 并发控制和进度显示
+            
+            ### 支持
+            - 图片格式: JPG, PNG, WEBP
+            - 视频: MP4
+          files: release/*.zip
+          draft: false
+          prerelease: false
