@@ -120,6 +120,13 @@ func (p *Processor) ClearTasks() {
 	p.tasks = make([]*Task, 0)
 }
 
+// SetTasks sets the task list (used for sorting)
+func (p *Processor) SetTasks(tasks []*Task) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.tasks = tasks
+}
+
 // GetTasks returns a copy of current tasks
 func (p *Processor) GetTasks() []*Task {
 	p.mu.Lock()

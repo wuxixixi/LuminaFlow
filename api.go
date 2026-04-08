@@ -18,6 +18,7 @@ const (
 	SubmitEndpoint   = "/v1/video_generation"
 	QueryEndpoint    = "/v1/query/video_generation"
 	RetrieveEndpoint = "/v1/files/retrieve"
+	BalanceEndpoint  = "/v1/balance"
 
 	// Polling configuration
 	InitialPollInterval = 5 * time.Second
@@ -421,4 +422,50 @@ func (c *APIClient) ConvertImageToVideo(ctx context.Context, imageBase64, prompt
 
 	Info("Image to video conversion completed: %s", outputPath)
 	return nil
+}
+
+// BalanceResponse represents the API balance response
+type BalanceResponse struct {
+	Data struct {
+		TotalBalance float64 `json:"total_balance"`
+		Currency     string  `json:"currency"`
+	} `json:"data"`
+	BaseResp struct {
+		StatusCode int    `json:"status_code"`
+		StatusMsg  string `json:"status_msg"`
+	} `json:"base_resp"`
+}
+
+// GetBalance queries the API account balance
+func (c *APIClient) GetBalance(ctx context.Context) (float64, string, error) {
+	queryURL := fmt.Sprintf("%s%s", BaseURL, BalanceEndpoint)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", queryURL, nil)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", c.APIKey)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, "", &APIError{StatusCode: resp.StatusCode, Message: string(body)}
+	}
+
+	var result BalanceResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if result.BaseResp.StatusCode != 0 {
+		return 0, "", &APIError{StatusCode: result.BaseResp.StatusCode, Message: result.BaseResp.StatusMsg}
+	}
+
+	Info("Balance query successful: %.2f %s", result.Data.TotalBalance, result.Data.Currency)
+	return result.Data.TotalBalance, result.Data.Currency, nil
 }

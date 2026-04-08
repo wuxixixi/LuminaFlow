@@ -23,6 +23,8 @@ type Config struct {
 	Duration    int    `json:"duration"`
 	Resolution  string `json:"resolution"`
 	Model       string `json:"model"`
+	Theme       string `json:"theme"` // "light" or "dark"
+	LogLevel    string `json:"log_level"` // "debug", "info", "warn", "error"
 }
 
 // PromptTemplate represents a preset prompt template
@@ -68,6 +70,8 @@ func DefaultConfig() *Config {
 		Duration:    6,
 		Resolution:  "768P",
 		Model:       "MiniMax-Hailuo-2.3",
+		Theme:       "light",
+		LogLevel:    "info",
 	}
 }
 
@@ -129,6 +133,12 @@ func (c *Config) loadFromFile() {
 	}
 	if saved.Resolution != "" {
 		c.Resolution = saved.Resolution
+	}
+	if saved.Theme != "" {
+		c.Theme = saved.Theme
+	}
+	if saved.LogLevel != "" {
+		c.LogLevel = saved.LogLevel
 	}
 
 	Info("Configuration loaded from %s", ConfigFile())

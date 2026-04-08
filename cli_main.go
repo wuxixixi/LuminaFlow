@@ -21,8 +21,14 @@ func main() {
 		return
 	}
 
-	// Load configuration
+	// Load configuration first to get log level
 	config := LoadConfig()
+
+	// Initialize logger with configured level
+	if err := InitLogger(config.LogLevel); err != nil {
+		// Continue without file logging if it fails
+	}
+	defer CloseLogger()
 
 	// API mode
 	if *apiMode {
@@ -30,7 +36,7 @@ func main() {
 		fmt.Println("  LuminaFlow - 图片转视频 API 服务器")
 		fmt.Println("================================================")
 		fmt.Println()
-		
+
 		if config.APIKey == "" {
 			fmt.Println("错误: 未设置 API Key")
 			fmt.Println("请设置环境变量 DMXAPI_API_KEY 或创建 .env 文件")

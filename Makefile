@@ -9,7 +9,7 @@ build-windows:
 
 # Windows GUI 构建
 build-windows-gui:
-	go build -tags gui -ldflags -H=windowsgui -o LuminaFlow_gui.exe .
+	go build -tags gui -ldflags "-H windowsgui" -o LuminaFlow_gui.exe .
 
 # macOS 构建 (需要 macOS 或交叉编译工具链)
 build-macos:

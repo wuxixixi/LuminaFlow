@@ -4,12 +4,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"image/color"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,13 +31,21 @@ import (
 // Custom Windows-style theme
 type windowsTheme struct {
 	fyne.Theme
+	darkMode bool
 }
 
-func newWindowsTheme() fyne.Theme {
-	return &windowsTheme{theme.DefaultTheme()}
+func newWindowsTheme(darkMode bool) fyne.Theme {
+	return &windowsTheme{theme.DefaultTheme(), darkMode}
 }
 
 func (t *windowsTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if t.darkMode {
+		return t.darkColor(name)
+	}
+	return t.lightColor(name)
+}
+
+func (t *windowsTheme) lightColor(name fyne.ThemeColorName) color.Color {
 	switch name {
 	case theme.ColorNameBackground:
 		return color.RGBA{R: 0xf3, G: 0xf3, B: 0xf3, A: 0xff}
@@ -59,8 +69,76 @@ func (t *windowsTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant
 		return color.RGBA{R: 0x10, G: 0x7c, B: 0x10, A: 0xff}
 	case theme.ColorNameError:
 		return color.RGBA{R: 0xc4, G: 0x2b, B: 0x1c, A: 0xff}
+	case theme.ColorNameForeground:
+		return color.RGBA{R: 0x1a, G: 0x1a, B: 0x1a, A: 0xff}
+	case theme.ColorNameDisabled:
+		return color.RGBA{R: 0x8c, G: 0x8c, B: 0x8c, A: 0xff}
+	case theme.ColorNamePlaceHolder:
+		return color.RGBA{R: 0x6c, G: 0x6c, B: 0x6c, A: 0xff}
+	case theme.ColorNameHover:
+		return color.RGBA{R: 0xe5, G: 0xf3, B: 0xff, A: 0xff}
+	case theme.ColorNamePressed:
+		return color.RGBA{R: 0xcc, G: 0xe4, B: 0xf7, A: 0xff}
+	case theme.ColorNameScrollBar:
+		return color.RGBA{R: 0xc1, G: 0xc1, B: 0xc1, A: 0xff}
+	case theme.ColorNameShadow:
+		return color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x20}
+	case theme.ColorNameInputBorder:
+		return color.RGBA{R: 0x8c, G: 0x8c, B: 0x8c, A: 0xff}
+	case theme.ColorNameMenuBackground:
+		return color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+	case theme.ColorNameOverlayBackground:
+		return color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
 	}
-	return t.Theme.Color(name, variant)
+	return t.Theme.Color(name, theme.VariantLight)
+}
+
+func (t *windowsTheme) darkColor(name fyne.ThemeColorName) color.Color {
+	switch name {
+	case theme.ColorNameBackground:
+		return color.RGBA{R: 0x1e, G: 0x1e, B: 0x1e, A: 0xff}
+	case theme.ColorNameButton:
+		return color.RGBA{R: 0x2d, G: 0x2d, B: 0x2d, A: 0xff}
+	case theme.ColorNameDisabledButton:
+		return color.RGBA{R: 0x3a, G: 0x3a, B: 0x3a, A: 0xff}
+	case theme.ColorNameInputBackground:
+		return color.RGBA{R: 0x2d, G: 0x2d, B: 0x2d, A: 0xff}
+	case theme.ColorNamePrimary:
+		return color.RGBA{R: 0x60, G: 0xcd, B: 0xfa, A: 0xff}
+	case theme.ColorNameFocus:
+		return color.RGBA{R: 0x60, G: 0xcd, B: 0xfa, A: 0xff}
+	case theme.ColorNameSelection:
+		return color.RGBA{R: 0x26, G: 0x82, B: 0xc4, A: 0xff}
+	case theme.ColorNameHeaderBackground:
+		return color.RGBA{R: 0x2d, G: 0x2d, B: 0x2d, A: 0xff}
+	case theme.ColorNameSeparator:
+		return color.RGBA{R: 0x3d, G: 0x3d, B: 0x3d, A: 0xff}
+	case theme.ColorNameSuccess:
+		return color.RGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff}
+	case theme.ColorNameError:
+		return color.RGBA{R: 0xef, G: 0x53, B: 0x50, A: 0xff}
+	case theme.ColorNameForeground:
+		return color.RGBA{R: 0xe3, G: 0xe3, B: 0xe3, A: 0xff}
+	case theme.ColorNameDisabled:
+		return color.RGBA{R: 0x6e, G: 0x6e, B: 0x6e, A: 0xff}
+	case theme.ColorNamePlaceHolder:
+		return color.RGBA{R: 0x8a, G: 0x8a, B: 0x8a, A: 0xff}
+	case theme.ColorNameHover:
+		return color.RGBA{R: 0x3a, G: 0x3a, B: 0x3a, A: 0xff}
+	case theme.ColorNamePressed:
+		return color.RGBA{R: 0x4a, G: 0x4a, B: 0x4a, A: 0xff}
+	case theme.ColorNameScrollBar:
+		return color.RGBA{R: 0x4d, G: 0x4d, B: 0x4d, A: 0xff}
+	case theme.ColorNameShadow:
+		return color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x40}
+	case theme.ColorNameInputBorder:
+		return color.RGBA{R: 0x4d, G: 0x4d, B: 0x4d, A: 0xff}
+	case theme.ColorNameMenuBackground:
+		return color.RGBA{R: 0x2d, G: 0x2d, B: 0x2d, A: 0xff}
+	case theme.ColorNameOverlayBackground:
+		return color.RGBA{R: 0x2d, G: 0x2d, B: 0x2d, A: 0xff}
+	}
+	return t.Theme.Color(name, theme.VariantDark)
 }
 
 // UI holds all GUI components
@@ -122,11 +200,20 @@ type UI struct {
 
 	// Drag and drop
 	dropWell *widget.Label
+
+	// Search and sort
+	searchEntry    *widget.Entry
+	sortSelect     *widget.Select
+	sortAscending  bool
+	filterText     string
+	promptLabel    *widget.Label
 }
 
 // NewUI creates the main application UI
 func NewUI(app fyne.App, processor *Processor, config *Config) *UI {
-	app.Settings().SetTheme(newWindowsTheme())
+	// Set theme based on config
+	darkMode := config.Theme == "dark"
+	app.Settings().SetTheme(newWindowsTheme(darkMode))
 
 	ui := &UI{
 		app:            app,
@@ -198,6 +285,38 @@ func (ui *UI) setupUI() {
 		layout.NewSpacer(),
 	)
 
+	// Search and sort row with proper layout
+	ui.searchEntry = widget.NewEntry()
+	ui.searchEntry.SetPlaceHolder("搜索文件名...")
+	ui.searchEntry.OnChanged = func(text string) {
+		ui.filterText = strings.ToLower(text)
+		ui.refreshList()
+	}
+
+	ui.sortSelect = widget.NewSelect([]string{"默认顺序", "按文件名", "按状态", "按尺寸"}, func(s string) {
+		ui.sortTasks()
+		ui.refreshList()
+	})
+	ui.sortSelect.SetSelected("默认顺序")
+	ui.sortAscending = true
+
+	sortBtn := widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), func() {
+		ui.sortAscending = !ui.sortAscending
+		ui.sortTasks()
+		ui.refreshList()
+	})
+
+	// Search row - use Border layout to make search entry expand
+	sortControls := container.NewHBox(
+		widget.NewLabel("排序:"),
+		ui.sortSelect,
+		sortBtn,
+	)
+	searchRow := container.NewBorder(nil, nil,
+		widget.NewLabel("搜索:"),
+		sortControls,
+		ui.searchEntry)
+
 	// Image list
 	ui.emptyLabel = widget.NewLabel("请点击「选择文件夹」或「添加图片」来加载图片\n\n支持格式: JPG, PNG, WEBP\n\n也可以直接拖拽图片到此处\n\n⚠️ 使用前请先在「设置」中配置 DMXAPI Key")
 	ui.emptyLabel.Alignment = fyne.TextAlignCenter
@@ -222,9 +341,23 @@ func (ui *UI) setupUI() {
 	ui.failedLabel = widget.NewLabel("失败: 0")
 	developerLabel := widget.NewLabel("上海觉测信息科技有限公司")
 
+	// Prompt display
+	ui.promptLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
+	ui.promptLabel.Wrapping = fyne.TextTruncate
+	ui.updatePromptDisplay()
+
+	// Balance query button
+	balanceLabel := widget.NewLabel("余额: --")
+	btnQueryBalance := widget.NewButtonWithIcon("", theme.AccountIcon(), func() {
+		go ui.queryBalance(balanceLabel)
+	})
+
 	statusBar := container.NewHBox(
 		ui.statusLabel,
 		layout.NewSpacer(),
+		balanceLabel,
+		btnQueryBalance,
+		widget.NewSeparator(),
 		ui.totalLabel,
 		widget.NewSeparator(),
 		ui.completedLabel,
@@ -234,7 +367,7 @@ func (ui *UI) setupUI() {
 		developerLabel,
 	)
 
-	// Progress bar row
+	// Progress bar row with prompt
 	progressRow := container.NewBorder(nil, nil, nil, nil, ui.progressBar)
 
 	// Main layout
@@ -243,12 +376,15 @@ func (ui *UI) setupUI() {
 		widget.NewSeparator(),
 		toolbarRow,
 		actionRow,
+		searchRow,
 		widget.NewSeparator(),
 	)
 
+	// Footer with progress, prompt and status
 	footerSection := container.NewVBox(
 		widget.NewSeparator(),
 		progressRow,
+		ui.promptLabel,
 		statusBar,
 	)
 
@@ -856,6 +992,14 @@ func (ui *UI) onSettings() {
 		}
 	}
 
+	// Theme selection
+	themeSelect := widget.NewSelect([]string{"浅色", "深色"}, func(s string) {})
+	if ui.config.Theme == "dark" {
+		themeSelect.SetSelected("深色")
+	} else {
+		themeSelect.SetSelected("浅色")
+	}
+
 	// Form
 	form := dialog.NewForm("设置", "保存", "取消",
 		[]*widget.FormItem{
@@ -866,6 +1010,7 @@ func (ui *UI) onSettings() {
 			widget.NewFormItem("分辨率", resolutionSelect),
 			widget.NewFormItem("提示词模板", templateSelect),
 			widget.NewFormItem("提示词", promptEntry),
+			widget.NewFormItem("主题", themeSelect),
 		},
 		func(confirmed bool) {
 			if !confirmed {
@@ -878,9 +1023,25 @@ func (ui *UI) onSettings() {
 			ui.config.Resolution = resolutionSelect.Selected
 			ui.config.Prompt = promptEntry.Text
 
+			// Update theme
+			newTheme := "light"
+			if themeSelect.Selected == "深色" {
+				newTheme = "dark"
+			}
+			themeChanged := ui.config.Theme != newTheme
+			ui.config.Theme = newTheme
+
 			// Save configuration
 			if err := ui.config.Save(); err != nil {
 				Warn("Failed to save config: %v", err)
+			}
+
+			// Update prompt display
+			ui.updatePromptDisplay()
+
+			// Apply theme change immediately
+			if themeChanged {
+				ui.app.Settings().SetTheme(newWindowsTheme(newTheme == "dark"))
 			}
 
 			if ui.config.APIKey == "" {
@@ -914,13 +1075,47 @@ func (ui *UI) onHelp() {
 	cmd.Start()
 }
 
+// updatePromptDisplay updates the prompt label with current prompt from config
+func (ui *UI) updatePromptDisplay() {
+	if ui.promptLabel == nil {
+		return
+	}
+	prompt := ui.config.Prompt
+	if prompt == "" {
+		ui.promptLabel.SetText("")
+		return
+	}
+	// Truncate if too long for display
+	if len([]rune(prompt)) > 60 {
+		prompt = string([]rune(prompt)[:57]) + "..."
+	}
+	ui.promptLabel.SetText("💡 提示词: " + prompt)
+}
+
 func (ui *UI) refreshList() {
 	ui.listMutex.Lock()
 	ui.listData = ui.processor.GetTasks()
+
+	// Apply filter
+	if ui.filterText != "" {
+		var filtered []*Task
+		for _, task := range ui.listData {
+			if strings.Contains(strings.ToLower(task.Image.Filename), ui.filterText) {
+				filtered = append(filtered, task)
+			}
+		}
+		ui.listData = filtered
+	}
+
 	count := len(ui.listData)
 	ui.listMutex.Unlock()
 
 	Info("refreshList: %d items", count)
+
+	// Check if imageList is initialized (may be called during setup)
+	if ui.imageList == nil {
+		return
+	}
 
 	if count > 0 {
 		ui.imageList.Show()
@@ -932,6 +1127,77 @@ func (ui *UI) refreshList() {
 
 	// Force list to recalculate item count and refresh all items
 	ui.imageList.Refresh()
+}
+
+// sortTasks sorts the task list based on current sort selection
+func (ui *UI) sortTasks() {
+	ui.listMutex.Lock()
+	defer ui.listMutex.Unlock()
+
+	tasks := ui.processor.GetTasks()
+
+	switch ui.sortSelect.Selected {
+	case "按文件名":
+		sort.Slice(tasks, func(i, j int) bool {
+			if ui.sortAscending {
+				return tasks[i].Image.Filename < tasks[j].Image.Filename
+			}
+			return tasks[i].Image.Filename > tasks[j].Image.Filename
+		})
+	case "按状态":
+		stateOrder := map[TaskState]int{
+			StateFailed:     0,
+			StateProcessing: 1,
+			StatePending:    2,
+			StateDone:       3,
+		}
+		sort.Slice(tasks, func(i, j int) bool {
+			orderI := stateOrder[tasks[i].State]
+			orderJ := stateOrder[tasks[j].State]
+			if ui.sortAscending {
+				return orderI < orderJ
+			}
+			return orderI > orderJ
+		})
+	case "按尺寸":
+		sort.Slice(tasks, func(i, j int) bool {
+			sizeI := tasks[i].Image.Width * tasks[i].Image.Height
+			sizeJ := tasks[j].Image.Width * tasks[j].Image.Height
+			if ui.sortAscending {
+				return sizeI < sizeJ
+			}
+			return sizeI > sizeJ
+		})
+	default:
+		// Default order - no sorting needed
+		return
+	}
+
+	// Update processor's task list
+	ui.processor.SetTasks(tasks)
+}
+
+// queryBalance queries the API account balance
+func (ui *UI) queryBalance(label *widget.Label) {
+	if ui.config.APIKey == "" {
+		label.SetText("余额: 未配置")
+		return
+	}
+
+	label.SetText("余额: 查询中...")
+
+	apiClient := NewAPIClient(ui.config.APIKey)
+	balance, currency, err := apiClient.GetBalance(context.Background())
+	if err != nil {
+		label.SetText("余额: 查询失败")
+		 Warn("Failed to query balance: %v", err)
+		return
+	}
+
+	if currency == "" {
+		currency = "CNY"
+	}
+	label.SetText(fmt.Sprintf("余额: %.2f %s", balance, currency))
 }
 
 func (ui *UI) updateStatusBar() {
@@ -976,7 +1242,7 @@ func (ui *UI) listItemCount() int {
 	ui.listMutex.RLock()
 	defer ui.listMutex.RUnlock()
 	count := len(ui.listData)
-	Info("listItemCount: %d", count)
+	Debug("listItemCount: %d", count)
 	return count
 }
 
@@ -1140,14 +1406,14 @@ func (ui *UI) removeTask(index int) {
 }
 
 func (ui *UI) listItemCreate() fyne.CanvasObject {
-	Info("listItemCreate called")
+	Debug("listItemCreate called")
 
 	// Checkbox for selection
 	selectBtn := widget.NewButtonWithIcon("", theme.Icon(theme.IconNameConfirm), nil)
 	selectBtn.Importance = widget.LowImportance
 
-	// Thumbnail
-	thumb := canvas.NewImageFromImage(nil)
+	// Thumbnail with placeholder
+	thumb := canvas.NewImageFromImage(GetPlaceholderImage())
 	thumb.FillMode = canvas.ImageFillContain
 	thumb.SetMinSize(fyne.NewSize(80, 60))
 
@@ -1202,7 +1468,7 @@ func (ui *UI) listItemCreate() fyne.CanvasObject {
 	}
 	ui.widgetsMutex.Unlock()
 
-	Info("listItemCreate: returning container")
+	Debug("listItemCreate: returning container")
 	// Wrap in contextListItem for right-click menu support
 	ctxItem := &contextListItem{
 		container: item,
@@ -1226,19 +1492,19 @@ type listItemWidgets struct {
 }
 
 func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
-	Info("listItemUpdate called: index=%d", index)
+	Debug("listItemUpdate called: index=%d", index)
 
 	ui.listMutex.RLock()
 	if index >= len(ui.listData) {
 		ui.listMutex.RUnlock()
-		Info("listItemUpdate: index %d out of range (len=%d)", index, len(ui.listData))
+		Debug("listItemUpdate: index %d out of range (len=%d)", index, len(ui.listData))
 		return
 	}
 	task := ui.listData[index]
 	imagePath := task.Image.Path
 	ui.listMutex.RUnlock()
 
-	Info("listItemUpdate: index=%d, file=%s", index, task.Image.Filename)
+	Debug("listItemUpdate: index=%d, file=%s", index, task.Image.Filename)
 
 	// Update index in contextListItem for context menu and get inner container
 	var innerContainer *fyne.Container
@@ -1246,12 +1512,12 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 	case *contextListItem:
 		v.index = index
 		innerContainer = v.container
-		Info("listItemUpdate: got contextListItem, container has %d objects", len(innerContainer.Objects))
+		Debug("listItemUpdate: got contextListItem, container has %d objects", len(innerContainer.Objects))
 	case *fyne.Container:
 		innerContainer = v
-		Info("listItemUpdate: got fyne.Container, has %d objects", len(innerContainer.Objects))
+		Debug("listItemUpdate: got fyne.Container, has %d objects", len(innerContainer.Objects))
 	default:
-		Info("listItemUpdate: type assertion failed, obj is %T", obj)
+		Debug("listItemUpdate: type assertion failed, obj is %T", obj)
 		return
 	}
 
@@ -1295,7 +1561,7 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 	findWidgets(innerContainer)
 
 	// Update text labels
-	Info("listItemUpdate: found widgets - filenameLabel: %v, dimensionsLabel: %v, stateLabel: %v, thumb: %v, selectBtn: %v",
+	Debug("listItemUpdate: found widgets - filenameLabel: %v, dimensionsLabel: %v, stateLabel: %v, thumb: %v, selectBtn: %v",
 		filenameLabel != nil, dimensionsLabel != nil, stateLabel != nil, thumb != nil, selectBtn != nil)
 	if filenameLabel != nil {
 		filenameLabel.SetText(task.Image.Filename)
@@ -1439,7 +1705,7 @@ func (ui *UI) listItemUpdate(index int, obj fyne.CanvasObject) {
 		}
 	}
 
-	Info("listItemUpdate: done")
+	Debug("listItemUpdate: done")
 }
 
 // openVideoFile opens the video file with the system default player

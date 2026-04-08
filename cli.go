@@ -169,8 +169,8 @@ func (cli *CLIUI) printSummary(tasks []*Task) {
 
 // RunCLI is the main entry point for CLI mode
 func RunCLI(config *Config) error {
-	// Initialize logger
-	if err := InitLogger(); err != nil {
+	// Initialize logger with configured level
+	if err := InitLogger(config.LogLevel); err != nil {
 		// Continue without file logging if it fails
 	}
 	defer CloseLogger()

@@ -8,16 +8,16 @@ import (
 )
 
 func main() {
-	// Initialize logger
-	if err := InitLogger(); err != nil {
+	// Load configuration first to get log level
+	config := LoadConfig()
+
+	// Initialize logger with configured level
+	if err := InitLogger(config.LogLevel); err != nil {
 		// Continue without file logging if it fails
 	}
 	defer CloseLogger()
 
 	Info("LuminaFlow starting...")
-
-	// Load configuration
-	config := LoadConfig()
 
 	// Create Fyne application
 	fyneApp := app.NewWithID("com.luminaflow.app")

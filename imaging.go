@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
 	"os"
@@ -13,6 +15,59 @@ import (
 	"golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp" // Register webp decoder
 )
+
+// placeholderImage is a cached placeholder image
+var placeholderImage image.Image
+
+// GetPlaceholderImage returns a placeholder image for thumbnails
+func GetPlaceholderImage() image.Image {
+	if placeholderImage != nil {
+		return placeholderImage
+	}
+
+	// Create a 80x60 placeholder image
+	img := image.NewRGBA(image.Rect(0, 0, 80, 60))
+
+	// Fill with light gray background
+	bgColor := color.RGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
+	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
+
+	// Draw a simple image icon in the center
+	// Icon is a simple rectangle with a circle (representing sun/mountain)
+	iconColor := color.RGBA{R: 0xb0, G: 0xb0, B: 0xb0, A: 0xff}
+
+	// Draw mountain-like shape
+	for y := 35; y < 50; y++ {
+		for x := 20; x < 60; x++ {
+			// Left mountain
+			if x >= 20 && x <= 35 && y >= 35 && y < 50 {
+				if y-35 >= (x-20) && y-35 >= (35-x)+20 {
+					img.Set(x, y, iconColor)
+				}
+			}
+			// Right mountain
+			if x >= 35 && x <= 55 && y >= 30 && y < 50 {
+				if y-30 >= (x-35)/2 && y-30 >= (55-x)/2 {
+					img.Set(x, y, iconColor)
+				}
+			}
+		}
+	}
+
+	// Draw sun (circle)
+	for y := 15; y < 28; y++ {
+		for x := 50; x < 63; x++ {
+			dx := x - 56
+			dy := y - 21
+			if dx*dx+dy*dy <= 36 { // radius 6
+				img.Set(x, y, iconColor)
+			}
+		}
+	}
+
+	placeholderImage = img
+	return img
+}
 
 // ImageInfo holds validated image information
 type ImageInfo struct {
