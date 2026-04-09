@@ -1370,7 +1370,7 @@ func (ui *UI) convertSingleImage(index int) {
 }
 
 func (ui *UI) openVideoFolder(path string) {
-	dir := strings.TrimSuffix(path, "/"+strings.Split(path, "/")[len(strings.Split(path, "/"))-1])
+	dir := filepath.Dir(path)
 	cmd := exec.Command("explorer", dir)
 	cmd.Start()
 }
