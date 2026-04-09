@@ -16,15 +16,17 @@ const (
 
 // Config holds all application settings
 type Config struct {
-	APIKey      string `json:"api_key"`
-	OutputDir   string `json:"output_dir"`
-	Concurrency int    `json:"concurrency"`
-	Prompt      string `json:"prompt"`
-	Duration    int    `json:"duration"`
-	Resolution  string `json:"resolution"`
-	Model       string `json:"model"`
-	Theme       string `json:"theme"` // "light" or "dark"
-	LogLevel    string `json:"log_level"` // "debug", "info", "warn", "error"
+	APIKey       string `json:"api_key"`
+	SystemToken  string `json:"system_token"` // System token for balance query
+	UserID       string `json:"user_id"`      // User ID for token balance query
+	OutputDir    string `json:"output_dir"`
+	Concurrency  int    `json:"concurrency"`
+	Prompt       string `json:"prompt"`
+	Duration     int    `json:"duration"`
+	Resolution   string `json:"resolution"`
+	Model        string `json:"model"`
+	Theme        string `json:"theme"`       // "light" or "dark"
+	LogLevel     string `json:"log_level"`   // "debug", "info", "warn", "error"
 }
 
 // PromptTemplate represents a preset prompt template
@@ -118,6 +120,12 @@ func (c *Config) loadFromFile() {
 	// Only load non-empty values
 	if saved.APIKey != "" {
 		c.APIKey = saved.APIKey
+	}
+	if saved.SystemToken != "" {
+		c.SystemToken = saved.SystemToken
+	}
+	if saved.UserID != "" {
+		c.UserID = saved.UserID
 	}
 	if saved.OutputDir != "" {
 		c.OutputDir = saved.OutputDir

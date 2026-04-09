@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	BaseURL          = "https://www.dmxapi.cn"
-	SubmitEndpoint   = "/v1/video_generation"
-	QueryEndpoint    = "/v1/query/video_generation"
-	RetrieveEndpoint = "/v1/files/retrieve"
-	BalanceEndpoint  = "/v1/balance"
+	BaseURL           = "https://www.dmxapi.cn"
+	SubmitEndpoint    = "/v1/video_generation"
+	QueryEndpoint     = "/v1/query/video_generation"
+	RetrieveEndpoint  = "/v1/files/retrieve"
+	BalanceEndpoint   = "/api/user/self"
+	TokenBalanceEndpoint = "/api/token/key/"
 
 	// Polling configuration
 	InitialPollInterval = 5 * time.Second
@@ -427,45 +428,141 @@ func (c *APIClient) ConvertImageToVideo(ctx context.Context, imageBase64, prompt
 // BalanceResponse represents the API balance response
 type BalanceResponse struct {
 	Data struct {
-		TotalBalance float64 `json:"total_balance"`
-		Currency     string  `json:"currency"`
+		ID           int     `json:"id"`
+		Username     string  `json:"username"`
+		Quota        int64   `json:"quota"`
+		UsedQuota    int64   `json:"used_quota"`
+		BonusQuota   int64   `json:"bonus_quota"`
+		TopupAmount  float64 `json:"topup_amount"`
+		DisplayName  string  `json:"display_name"`
+		Email        string  `json:"email"`
+		Level        string  `json:"level"`
 	} `json:"data"`
-	BaseResp struct {
-		StatusCode int    `json:"status_code"`
-		StatusMsg  string `json:"status_msg"`
-	} `json:"base_resp"`
+	Message string `json:"message"`
+	Success bool   `json:"success"`
 }
 
-// GetBalance queries the API account balance
-func (c *APIClient) GetBalance(ctx context.Context) (float64, string, error) {
+// BalanceInfo holds parsed balance information
+type BalanceInfo struct {
+	Quota     int64   // 剩余配额
+	UsedQuota int64   // 已使用配额
+	Balance   float64 // 余额（元）
+	Used      float64 // 已使用（元）
+}
+
+// TokenBalanceResponse represents the token balance response
+type TokenBalanceResponse struct {
+	Data struct {
+		ID             int     `json:"id"`
+		Name           string  `json:"name"`
+		Key            string  `json:"key"`
+		Status         int     `json:"status"`
+		UsedQuota      float64 `json:"used_quota"`
+		RemainQuota    float64 `json:"remain_quota"`
+		RemainCount    int     `json:"remain_count"`
+		UnlimitedQuota bool    `json:"unlimited_quota"`
+		UnlimitedCount bool    `json:"unlimited_count"`
+	} `json:"data"`
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+}
+
+// GetBalance queries the API account balance using system token
+func (c *APIClient) GetBalance(ctx context.Context, systemToken, userID string) (*BalanceInfo, error) {
+	if systemToken == "" {
+		return nil, fmt.Errorf("系统令牌未配置，请在设置中配置系统令牌")
+	}
+	if userID == "" {
+		return nil, fmt.Errorf("用户ID未配置，请在设置中配置用户ID")
+	}
+
 	queryURL := fmt.Sprintf("%s%s", BaseURL, BalanceEndpoint)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", queryURL, nil)
 	if err != nil {
-		return 0, "", fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Authorization", c.APIKey)
+	req.Header.Set("Authorization", systemToken)
+	req.Header.Set("Rix-Api-User", userID)
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return 0, "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return 0, "", &APIError{StatusCode: resp.StatusCode, Message: string(body)}
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: string(body)}
 	}
+
+	Info("Balance API response: %s", string(body))
 
 	var result BalanceResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return 0, "", fmt.Errorf("failed to decode response: %w", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if result.BaseResp.StatusCode != 0 {
-		return 0, "", &APIError{StatusCode: result.BaseResp.StatusCode, Message: result.BaseResp.StatusMsg}
+	if !result.Success {
+		return nil, fmt.Errorf("API returned error: %s", result.Message)
 	}
 
-	Info("Balance query successful: %.2f %s", result.Data.TotalBalance, result.Data.Currency)
-	return result.Data.TotalBalance, result.Data.Currency, nil
+	// Calculate balance: quota / 500000 = CNY
+	info := &BalanceInfo{
+		Quota:     result.Data.Quota,
+		UsedQuota: result.Data.UsedQuota,
+		Balance:   float64(result.Data.Quota) / 500000.0,
+		Used:      float64(result.Data.UsedQuota) / 500000.0,
+	}
+
+	Info("Balance query successful: quota=%d, used=%d, balance=%.2f CNY", info.Quota, info.UsedQuota, info.Balance)
+	return info, nil
+}
+
+// GetTokenBalance queries the token's remaining quota and count
+func (c *APIClient) GetTokenBalance(ctx context.Context, systemToken, userID string) (remainCount int, err error) {
+	if systemToken == "" {
+		return 0, fmt.Errorf("系统令牌未配置")
+	}
+	if userID == "" {
+		return 0, fmt.Errorf("用户ID未配置")
+	}
+
+	queryURL := fmt.Sprintf("%s%s%s", BaseURL, TokenBalanceEndpoint, c.APIKey)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", queryURL, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	// Token balance query requires Authorization, Rix-Api-User headers
+	req.Header.Set("Authorization", systemToken)
+	req.Header.Set("Rix-Api-User", userID)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	Info("Token balance API response: %s", string(body))
+
+	if resp.StatusCode != 200 {
+		return 0, &APIError{StatusCode: resp.StatusCode, Message: string(body)}
+	}
+
+	var result TokenBalanceResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if !result.Success {
+		return 0, fmt.Errorf("API error: %s", result.Message)
+	}
+
+	Info("Token balance query successful: remain_count=%d, remain_quota=%.2f", result.Data.RemainCount, result.Data.RemainQuota)
+	return result.Data.RemainCount, nil
 }

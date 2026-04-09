@@ -187,6 +187,7 @@ type UI struct {
 	totalLabel     *widget.Label
 	completedLabel *widget.Label
 	failedLabel    *widget.Label
+	balanceLabel   *widget.Label
 
 	// Containers
 	mainContainer *fyne.Container
@@ -346,25 +347,32 @@ func (ui *UI) setupUI() {
 	ui.promptLabel.Wrapping = fyne.TextTruncate
 	ui.updatePromptDisplay()
 
-	// Balance query button
-	balanceLabel := widget.NewLabel("余额: --")
-	btnQueryBalance := widget.NewButtonWithIcon("", theme.AccountIcon(), func() {
-		go ui.queryBalance(balanceLabel)
+	// Balance display with refresh button
+	ui.balanceLabel = widget.NewLabelWithStyle("令牌剩余次数: -- | 余额: --", fyne.TextAlignLeading, fyne.TextStyle{})
+	btnRefreshBalance := widget.NewButtonWithIcon("刷新", theme.ViewRefreshIcon(), func() {
+		go ui.queryBalance()
 	})
+	btnRefreshBalance.Importance = widget.LowImportance
 
-	statusBar := container.NewHBox(
-		ui.statusLabel,
-		layout.NewSpacer(),
-		balanceLabel,
-		btnQueryBalance,
-		widget.NewSeparator(),
+	// Balance section
+	balanceSection := container.NewHBox(
+		ui.balanceLabel,
+		btnRefreshBalance,
+	)
+
+	// Task statistics section
+	statsSection := container.NewHBox(
 		ui.totalLabel,
 		widget.NewSeparator(),
 		ui.completedLabel,
 		widget.NewSeparator(),
 		ui.failedLabel,
-		widget.NewSeparator(),
-		developerLabel,
+	)
+
+	statusBar := container.NewBorder(
+		nil, nil,
+		ui.statusLabel,
+		container.NewHBox(statsSection, widget.NewSeparator(), balanceSection, widget.NewSeparator(), developerLabel),
 	)
 
 	// Progress bar row with prompt
@@ -401,9 +409,13 @@ func (ui *UI) setupUI() {
 	// Start background tasks
 	go ui.eventListener()
 	go ui.updateLoop()
+	go ui.balanceRefreshLoop()
 
 	// Setup keyboard shortcuts
 	ui.setupShortcuts()
+
+	// Initial balance query
+	go ui.queryBalance()
 }
 
 // setupShortcuts configures keyboard shortcuts
@@ -881,11 +893,29 @@ func (ui *UI) stopProcessing(status string) {
 	ui.btnOpenFolder.Enable()
 	ui.btnAddImages.Enable()
 	ui.btnClear.Enable()
-	
+
 	// Set progress to 100% and keep it visible
 	ui.progressBar.SetValue(1.0)
 	ui.progressLabel.SetText("100%")
 	ui.statusLabel.SetText(status)
+
+	// Refresh balance after processing
+	go ui.queryBalance()
+
+	// Show completion dialog with option to open output folder
+	if strings.Contains(status, "完成") {
+		_, _, _, done, failed := ui.processor.GetTaskCount()
+		if done > 0 {
+			dialog.ShowCustomConfirm("处理完成", "打开输出文件夹", "关闭",
+				widget.NewLabel(fmt.Sprintf("%s\n\n成功: %d 个, 失败: %d 个\n是否打开输出文件夹?",
+					status, done, failed)),
+				func(confirmed bool) {
+					if confirmed {
+						ui.openOutputFolder()
+					}
+				}, ui.window)
+		}
+	}
 
 	Info("Processing stopped: %s", status)
 }
@@ -907,6 +937,42 @@ func (ui *UI) onSettings() {
 		container.NewHBox(
 			widget.NewLabel("没有账号？"),
 			registerLink,
+		),
+	)
+
+	// System Token (for balance query)
+	systemTokenEntry := widget.NewPasswordEntry()
+	systemTokenEntry.SetText(ui.config.SystemToken)
+	systemTokenEntry.SetPlaceHolder("系统令牌（用于余额查询）")
+
+	systemTokenLink := widget.NewHyperlink("获取系统令牌", nil)
+	systemTokenLink.OnTapped = func() {
+		ui.openURL("https://www.dmxapi.cn/profile")
+	}
+
+	systemTokenRow := container.NewVBox(
+		systemTokenEntry,
+		container.NewHBox(
+			widget.NewLabel("在个人中心创建"),
+			systemTokenLink,
+		),
+	)
+
+	// User ID (for token balance query)
+	userIDEntry := widget.NewEntry()
+	userIDEntry.SetText(ui.config.UserID)
+	userIDEntry.SetPlaceHolder("用户ID（用于令牌余额查询）")
+
+	userIDLink := widget.NewHyperlink("查看用户ID", nil)
+	userIDLink.OnTapped = func() {
+		ui.openURL("https://www.dmxapi.cn/profile")
+	}
+
+	userIDRow := container.NewVBox(
+		userIDEntry,
+		container.NewHBox(
+			widget.NewLabel("在个人中心查看"),
+			userIDLink,
 		),
 	)
 
@@ -1004,6 +1070,8 @@ func (ui *UI) onSettings() {
 	form := dialog.NewForm("设置", "保存", "取消",
 		[]*widget.FormItem{
 			widget.NewFormItem("API Key", apiKeyRow),
+			widget.NewFormItem("系统令牌", systemTokenRow),
+			widget.NewFormItem("用户ID", userIDRow),
 			widget.NewFormItem("输出目录", outputDirRow),
 			widget.NewFormItem("并发数", concurrencyRow),
 			widget.NewFormItem("视频时长", durationRow),
@@ -1017,6 +1085,8 @@ func (ui *UI) onSettings() {
 				return
 			}
 			ui.config.APIKey = apiKeyEntry.Text
+			ui.config.SystemToken = systemTokenEntry.Text
+			ui.config.UserID = userIDEntry.Text
 			ui.config.OutputDir = outputDirEntry.Text
 			ui.config.Concurrency = int(concurrencySlider.Value)
 			ui.config.Duration = int(durationSlider.Value)
@@ -1049,7 +1119,7 @@ func (ui *UI) onSettings() {
 			}
 		}, ui.window)
 
-	form.Resize(fyne.NewSize(550, 450))
+	form.Resize(fyne.NewSize(550, 550))
 	form.Show()
 }
 
@@ -1177,27 +1247,54 @@ func (ui *UI) sortTasks() {
 	ui.processor.SetTasks(tasks)
 }
 
-// queryBalance queries the API account balance
-func (ui *UI) queryBalance(label *widget.Label) {
-	if ui.config.APIKey == "" {
-		label.SetText("余额: 未配置")
+// queryBalance queries the API account balance and token balance
+func (ui *UI) queryBalance() {
+	if ui.config.SystemToken == "" {
+		ui.balanceLabel.SetText("请先配置系统令牌")
+		return
+	}
+	if ui.config.UserID == "" {
+		ui.balanceLabel.SetText("请先配置用户ID")
 		return
 	}
 
-	label.SetText("余额: 查询中...")
+	ui.balanceLabel.SetText("查询中...")
 
 	apiClient := NewAPIClient(ui.config.APIKey)
-	balance, currency, err := apiClient.GetBalance(context.Background())
+	ctx := context.Background()
+
+	// Query token balance (remaining count)
+	remainCount, err := apiClient.GetTokenBalance(ctx, ui.config.SystemToken, ui.config.UserID)
 	if err != nil {
-		label.SetText("余额: 查询失败")
-		 Warn("Failed to query balance: %v", err)
+		ui.balanceLabel.SetText(fmt.Sprintf("查询失败: %v", err))
+		Error("Failed to query token balance: %v", err)
 		return
 	}
 
-	if currency == "" {
-		currency = "CNY"
+	// Query account balance
+	info, err := apiClient.GetBalance(ctx, ui.config.SystemToken, ui.config.UserID)
+	if err != nil {
+		// Show token count even if account balance fails
+		ui.balanceLabel.SetText(fmt.Sprintf("令牌: %d次 | 余额: 查询失败", remainCount))
+		Error("Failed to query account balance: %v", err)
+		return
 	}
-	label.SetText(fmt.Sprintf("余额: %.2f %s", balance, currency))
+
+	ui.balanceLabel.SetText(fmt.Sprintf("令牌剩余次数: %d次 | 余额: %.2f元", remainCount, info.Balance))
+	Info("Token balance: remaining=%d times, balance=%.2f CNY", remainCount, info.Balance)
+}
+
+// balanceRefreshLoop periodically refreshes balance during processing
+func (ui *UI) balanceRefreshLoop() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Only auto-refresh if processing is running
+		if ui.processor.IsRunning() {
+			ui.queryBalance()
+		}
+	}
 }
 
 func (ui *UI) updateStatusBar() {
@@ -1372,6 +1469,18 @@ func (ui *UI) convertSingleImage(index int) {
 func (ui *UI) openVideoFolder(path string) {
 	dir := filepath.Dir(path)
 	cmd := exec.Command("explorer", dir)
+	cmd.Start()
+}
+
+// openOutputFolder opens the output directory in explorer
+func (ui *UI) openOutputFolder() {
+	outputDir := ui.config.OutputDir
+	// Ensure directory exists
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		dialog.ShowError(fmt.Errorf("输出目录不存在: %s", outputDir), ui.window)
+		return
+	}
+	cmd := exec.Command("explorer", outputDir)
 	cmd.Start()
 }
 
