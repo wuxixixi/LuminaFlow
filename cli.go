@@ -4,7 +4,22 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
+)
+
+// CLI color codes
+const (
+	cliReset   = "\033[0m"
+	cliRed     = "\033[31m"
+	cliGreen   = "\033[32m"
+	cliYellow  = "\033[33m"
+	cliBlue    = "\033[34m"
+	cliMagenta = "\033[35m"
+	cliCyan    = "\033[36m"
+	cliWhite   = "\033[37m"
+	cliBold    = "\033[1m"
+	cliDim     = "\033[2m"
 )
 
 // CLIUI provides a terminal-based user interface
@@ -25,22 +40,23 @@ func NewCLIUI(processor *Processor, config *Config) *CLIUI {
 func (cli *CLIUI) Run() error {
 	// Check API key
 	if cli.config.APIKey == "" {
-		fmt.Println("错误: 未设置 API Key")
+		cli.printError("错误: 未设置 API Key")
+		fmt.Println()
 		fmt.Println("请设置环境变量 DMXAPI_API_KEY 或创建 .env 文件")
 		fmt.Println()
 		fmt.Println("创建 .env 文件示例:")
-		fmt.Println("  echo DMXAPI_API_KEY=your_api_key > .env")
+		fmt.Printf("  %secho DMXAPI_API_KEY=your_api_key > .env%s\n", cliDim, cliReset)
 		return fmt.Errorf("API key not configured")
 	}
 
-	// Show config
-	fmt.Printf("配置信息:\n")
-	fmt.Printf("  API Key: %s***\n", maskString(cli.config.APIKey))
-	fmt.Printf("  输出目录: %s\n", cli.config.OutputDir)
-	fmt.Printf("  并发数: %d\n", cli.config.Concurrency)
-	fmt.Printf("  模型: %s\n", cli.config.Model)
-	fmt.Printf("  时长: %d秒\n", cli.config.Duration)
-	fmt.Printf("  分辨率: %s\n", cli.config.Resolution)
+	// Show config with colors
+	cli.printHeader("配置信息")
+	fmt.Printf("  %sAPI Key:%s %s***%s\n", cliCyan, cliReset, cli.config.APIKey[:min(8, len(cli.config.APIKey))], cliReset)
+	fmt.Printf("  %s输出目录:%s %s\n", cliCyan, cliReset, cli.config.OutputDir)
+	fmt.Printf("  %s并发数:%s %d\n", cliCyan, cliReset, cli.config.Concurrency)
+	fmt.Printf("  %s模型:%s %s\n", cliCyan, cliReset, cli.config.Model)
+	fmt.Printf("  %s时长:%s %d秒\n", cliCyan, cliReset, cli.config.Duration)
+	fmt.Printf("  %s分辨率:%s %s\n", cliCyan, cliReset, cli.config.Resolution)
 	fmt.Println()
 
 	// Find data directory
@@ -55,14 +71,17 @@ func (cli *CLIUI) Run() error {
 
 	images, err := ScanImages(dataDir)
 	if err != nil || len(images) == 0 {
-		fmt.Printf("从 %s 扫描图片失败或没有找到图片\n", dataDir)
+		cli.printError("从 %s 扫描图片失败或没有找到图片", dataDir)
 		fmt.Println("请将图片文件放入 data 目录")
 		return fmt.Errorf("no images found")
 	}
 
-	fmt.Printf("找到 %d 个图片文件:\n", len(images))
+	cli.printSuccess("找到 %d 个图片文件:", len(images))
 	for _, img := range images {
-		fmt.Printf("  - %s (%dx%d)\n", img.Filename, img.Width, img.Height)
+		fmt.Printf("  %s•%s %s (%s%d%sx%s%d%s)\n",
+			cliGreen, cliReset, img.Filename,
+			cliDim, img.Width, cliReset,
+			cliDim, img.Height, cliReset)
 	}
 	fmt.Println()
 
@@ -72,19 +91,32 @@ func (cli *CLIUI) Run() error {
 	return nil
 }
 
-func maskString(s string) string {
-	if len(s) <= 8 {
-		return "***"
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
-	return s[:8]
+	return b
+}
+
+func (cli *CLIUI) printError(format string, args ...interface{}) {
+	fmt.Printf("%s%s✗ %s%s\n", cliBold, cliRed, cliReset, fmt.Sprintf(format, args...))
+}
+
+func (cli *CLIUI) printSuccess(format string, args ...interface{}) {
+	fmt.Printf("%s%s✓ %s%s\n", cliBold, cliGreen, cliReset, fmt.Sprintf(format, args...))
+}
+
+func (cli *CLIUI) printHeader(text string) {
+	fmt.Printf("\n%s%s▌ %s %s\n", cliBold, cliBlue, text, cliReset)
+	fmt.Printf("%s%s%s%s\n", cliDim, strings.Repeat("─", 40), cliReset, cliReset)
 }
 
 func (cli *CLIUI) processImages(images []ImageInfo) {
 	// Add images to processor
 	cli.processor.AddImages(images)
 
-	fmt.Printf("开始处理 %d 个图片...\n", len(images))
-	fmt.Println()
+	cli.printHeader("开始处理")
+	fmt.Printf("共 %d 个图片待处理...\n\n", len(images))
 
 	// Start processing
 	cli.processor.Start()
@@ -109,34 +141,54 @@ func (cli *CLIUI) processImages(images []ImageInfo) {
 			break
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	// Final summary
 	fmt.Println()
-	fmt.Println("处理完成!")
 	fmt.Println()
-
-	tasks := cli.processor.GetTasks()
-	cli.printSummary(tasks)
+	cli.printSummary(cli.processor.GetTasks())
 }
 
 func (cli *CLIUI) printProgress(tasks []*Task) {
+	total := len(tasks)
+	done := cli.countState(tasks, StateDone)
+	failed := cli.countState(tasks, StateFailed)
 	processing := 0
+	pending := 0
+
 	for _, t := range tasks {
 		switch t.State {
 		case StateEncoding, StateSubmitting, StateProcessing, StateDownloading:
 			processing++
+		case StatePending:
+			pending++
 		}
 	}
 
-	activeStr := ""
-	if processing > 0 {
-		activeStr = fmt.Sprintf(" [%d 处理中]", processing)
-	}
+	// Progress bar
+	width := 30
+	completed := done + failed
+	progress := float64(completed) / float64(total)
+	filled := int(progress * float64(width))
 
-	fmt.Printf("\r已加载: %d | 处理中: %d | 完成: %d | 失败: %d%s",
-		len(tasks), processing, cli.countState(tasks, StateDone), cli.countState(tasks, StateFailed), activeStr)
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+
+	// Status line with colors
+	fmt.Printf("\r%s%s%s [%s%s%s] %s%d/%d%s │ ",
+		cliDim, bar, cliReset,
+		cliGreen, fmt.Sprintf("%.0f%%", progress*100), cliReset,
+		cliCyan, completed, total, cliReset)
+
+	// Color-coded counts
+	fmt.Printf("%s完成:%d%s %s失败:%d%s %s处理中:%d%s %s等待:%d%s",
+		cliGreen, done, cliReset,
+		cliRed, failed, cliReset,
+		cliYellow, processing, cliReset,
+		cliDim, pending, cliReset)
+
+	// Clear rest of line
+	fmt.Print("   ")
 }
 
 func (cli *CLIUI) countState(tasks []*Task, state TaskState) int {
@@ -153,18 +205,29 @@ func (cli *CLIUI) printSummary(tasks []*Task) {
 	successCount := 0
 	failCount := 0
 
-	fmt.Println("------------------------------------------------")
+	cli.printHeader("处理结果")
+
 	for _, t := range tasks {
 		if t.State == StateDone {
 			successCount++
-			fmt.Printf("[成功] %s\n", t.Image.Filename)
+			fmt.Printf("  %s✓%s %s%s%s → %s\n",
+				cliGreen, cliReset,
+				cliBold, t.Image.Filename, cliReset,
+				t.OutputPath)
 		} else if t.State == StateFailed {
 			failCount++
-			fmt.Printf("[失败] %s: %v\n", t.Image.Filename, t.Error)
+			fmt.Printf("  %s✗%s %s%s%s: %s%s%s\n",
+				cliRed, cliReset,
+				cliBold, t.Image.Filename, cliReset,
+				cliRed, t.Error, cliReset)
 		}
 	}
-	fmt.Println("------------------------------------------------")
-	fmt.Printf("\n总计: %d | 成功: %d | 失败: %d\n", len(tasks), successCount, failCount)
+
+	fmt.Println()
+	fmt.Printf("  %s总计:%s %d  %s成功:%s %d  %s失败:%s %d\n",
+		cliCyan, cliReset, len(tasks),
+		cliGreen, cliReset, successCount,
+		cliRed, cliReset, failCount)
 }
 
 // RunCLI is the main entry point for CLI mode

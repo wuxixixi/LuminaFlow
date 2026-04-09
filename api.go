@@ -354,7 +354,7 @@ func (c *APIClient) PollTask(ctx context.Context, taskID string) (fileID string,
 		if err != nil {
 			Warn("Query failed (poll %d): %v", pollCount, err)
 			time.Sleep(interval)
-			interval = min(interval*2, MaxPollInterval)
+			interval = time.Duration(min(int(interval*2), int(MaxPollInterval)))
 			continue
 		}
 
@@ -380,7 +380,7 @@ func (c *APIClient) PollTask(ctx context.Context, taskID string) (fileID string,
 		case <-time.After(interval):
 		}
 
-		interval = min(interval*2, MaxPollInterval)
+		interval = time.Duration(min(int(interval*2), int(MaxPollInterval)))
 	}
 }
 
