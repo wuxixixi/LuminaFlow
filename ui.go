@@ -1049,6 +1049,13 @@ func (ui *UI) onSettings() {
 	promptEntry.SetText(ui.config.Prompt)
 	promptEntry.SetMinRowsVisible(3)
 
+	// LLM optimize button
+	llmOptimizeBtn := widget.NewButton("🤖 LLM优化", nil)
+	llmOptimizeBtn.Importance = widget.LowImportance
+
+	// Optimize status label
+	optimizeStatusLabel := widget.NewLabel("")
+
 	templateSelect.OnChanged = func(s string) {
 		for _, t := range PromptTemplates {
 			if t.Name == s && t.Name != "自定义" {
@@ -1057,6 +1064,49 @@ func (ui *UI) onSettings() {
 			}
 		}
 	}
+
+	// LLM optimize button click handler
+	llmOptimizeBtn.OnTapped = func() {
+		if ui.config.APIKey == "" {
+			dialog.ShowInformation("提示", "请先配置 API Key", ui.window)
+			return
+		}
+		if promptEntry.Text == "" {
+			dialog.ShowInformation("提示", "请先输入提示词", ui.window)
+			return
+		}
+
+		llmOptimizeBtn.Disable()
+		llmOptimizeBtn.SetText("优化中...")
+		optimizeStatusLabel.SetText("正在调用 LLM 优化...")
+		originalPrompt := promptEntry.Text
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			apiClient := NewAPIClient(ui.config.APIKey)
+			optimizedPrompt, err := apiClient.OptimizePrompt(ctx, originalPrompt)
+
+			// Update UI on main thread
+			optimizedPromptCopy := optimizedPrompt
+			llmOptimizeBtn.Enable()
+			llmOptimizeBtn.SetText("🤖 LLM优化")
+
+			if err != nil {
+				optimizeStatusLabel.SetText("")
+				dialog.ShowError(fmt.Errorf("LLM优化失败: %v", err), ui.window)
+				return
+			}
+
+			promptEntry.SetText(optimizedPromptCopy)
+			optimizeStatusLabel.SetText("✓ 已优化")
+			Info("Prompt optimized successfully")
+		}()
+	}
+
+	// Prompt entry with optimize button
+	promptRow := container.NewBorder(nil, nil, nil, llmOptimizeBtn, promptEntry)
 
 	// Theme selection
 	themeSelect := widget.NewSelect([]string{"浅色", "深色"}, func(s string) {})
@@ -1077,7 +1127,8 @@ func (ui *UI) onSettings() {
 			widget.NewFormItem("视频时长", durationRow),
 			widget.NewFormItem("分辨率", resolutionSelect),
 			widget.NewFormItem("提示词模板", templateSelect),
-			widget.NewFormItem("提示词", promptEntry),
+			widget.NewFormItem("提示词", promptRow),
+			widget.NewFormItem("", optimizeStatusLabel),
 			widget.NewFormItem("主题", themeSelect),
 		},
 		func(confirmed bool) {

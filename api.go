@@ -566,3 +566,100 @@ func (c *APIClient) GetTokenBalance(ctx context.Context, systemToken, userID str
 	Info("Token balance query successful: remain_count=%d, remain_quota=%.2f", result.Data.RemainCount, result.Data.RemainQuota)
 	return result.Data.RemainCount, nil
 }
+
+// ChatCompletionMessage represents a message in chat completion
+type ChatCompletionMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// ChatCompletionRequest for LLM chat completion API
+type ChatCompletionRequest struct {
+	Model    string                  `json:"model"`
+	Messages []ChatCompletionMessage `json:"messages"`
+}
+
+// ChatCompletionResponse from LLM chat completion API
+type ChatCompletionResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index   int                   `json:"index"`
+		Message ChatCompletionMessage `json:"message"`
+		Finish  string                `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
+// ChatCompletion calls the LLM chat completion API
+func (c *APIClient) ChatCompletion(ctx context.Context, messages []ChatCompletionMessage) (string, error) {
+	reqBody := ChatCompletionRequest{
+		Model:    "glm-5.1-free",
+		Messages: messages,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://www.dmxapi.cn/v1/chat/completions", strings.NewReader(string(jsonData)))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return "", &APIError{StatusCode: resp.StatusCode, Message: string(body)}
+	}
+
+	var result ChatCompletionResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(result.Choices) == 0 {
+		return "", fmt.Errorf("no response from LLM")
+	}
+
+	Info("Chat completion successful: model=%s, tokens=%d", result.Model, result.Usage.TotalTokens)
+	return result.Choices[0].Message.Content, nil
+}
+
+// OptimizePrompt uses LLM to optimize a video generation prompt
+func (c *APIClient) OptimizePrompt(ctx context.Context, originalPrompt string) (string, error) {
+	systemPrompt := `你是一个专业的AI视频生成提示词优化专家。你的任务是优化用户提供的视频生成提示词，使其更加精确、生动，能够生成更高质量的视频。
+
+优化原则：
+1. 保持原始提示词的核心意图不变
+2. 添加具体的视觉描述（光影、色彩、构图）
+3. 明确镜头运动方式和速度
+4. 加入专业电影术语（如推拉摇移、景深、焦点变化等）
+5. 保持提示词简洁但有表现力
+6. 输出格式：直接输出优化后的提示词，不要添加任何解释或前缀
+
+请优化以下提示词：`
+
+	messages := []ChatCompletionMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: originalPrompt},
+	}
+
+	return c.ChatCompletion(ctx, messages)
+}
