@@ -13,7 +13,7 @@ LuminaFlow is a Go application that batch converts images to videos using the DM
 go build -o LuminaFlow.exe .
 
 # GUI mode (requires CGO and graphics libraries)
-go build -tags gui -o LuminaFlow.exe .
+CGO_ENABLED=1 go build -tags gui -ldflags "-H windowsgui" -o LuminaFlow_gui.exe .
 
 # Using Makefile
 make build-windows    # CLI build

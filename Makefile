@@ -7,9 +7,9 @@ VERSION = 1.4.3
 build-windows:
 	go build -o LuminaFlow.exe .
 
-# Windows GUI 构建
+# Windows GUI 构建 (需要 CGO)
 build-windows-gui:
-	go build -tags gui -ldflags "-H windowsgui" -o LuminaFlow_gui.exe .
+	CGO_ENABLED=1 go build -tags gui -ldflags "-H windowsgui" -o LuminaFlow_gui.exe .
 
 # macOS 构建 (需要 macOS 或交叉编译工具链)
 build-macos:
@@ -49,6 +49,6 @@ package-macos:
 cross-macos:
 	fyne-cross darwin -arch amd64,arm64 -name LuminaFlow
 
-# 交叉编译 Windows (需要 fyne-cross)
+# 交叉编译 Windows GUI (需要 fyne-cross)
 cross-windows:
-	fyne-cross windows -arch amd64 -name LuminaFlow
+	CGO_ENABLED=1 fyne-cross windows -arch amd64 -name LuminaFlow
