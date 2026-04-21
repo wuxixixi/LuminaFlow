@@ -401,6 +401,6 @@ func (p *Processor) updateTaskState(task *Task, state TaskState) {
 
 	p.taskEvents <- TaskEvent{
 		Filename: task.Image.Filename,
-		State:   state,
+		State:    state,
 	}
 }

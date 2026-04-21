@@ -91,13 +91,6 @@ func (cli *CLIUI) Run() error {
 	return nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (cli *CLIUI) printError(format string, args ...interface{}) {
 	fmt.Printf("%s%s✗ %s%s\n", cliBold, cliRed, cliReset, fmt.Sprintf(format, args...))
 }

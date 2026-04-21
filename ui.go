@@ -152,11 +152,11 @@ type UI struct {
 	titleLabel *widget.Label
 
 	// Toolbar buttons
-	btnOpenFolder *widget.Button
-	btnAddImages  *widget.Button
-	btnClear      *widget.Button
-	btnSettings   *widget.Button
-	btnSelectAll  *widget.Button
+	btnOpenFolder  *widget.Button
+	btnAddImages   *widget.Button
+	btnClear       *widget.Button
+	btnSettings    *widget.Button
+	btnSelectAll   *widget.Button
 	btnDeselectAll *widget.Button
 
 	// Action buttons
@@ -169,8 +169,8 @@ type UI struct {
 	listMutex     sync.RWMutex
 	emptyLabel    *widget.Label
 	listContainer *fyne.Container
-	selectedMap   map[int]bool // Track selection state by index
-	checkboxes    map[int]*widget.Check // Store checkbox references
+	selectedMap   map[int]bool             // Track selection state by index
+	checkboxes    map[int]*widget.Check    // Store checkbox references
 	listWidgets   map[int]*listItemWidgets // Store widget references by index
 	widgetsMutex  sync.RWMutex
 
@@ -203,11 +203,11 @@ type UI struct {
 	dropWell *widget.Label
 
 	// Search and sort
-	searchEntry    *widget.Entry
-	sortSelect     *widget.Select
-	sortAscending  bool
-	filterText     string
-	promptLabel    *widget.Label
+	searchEntry   *widget.Entry
+	sortSelect    *widget.Select
+	sortAscending bool
+	filterText    string
+	promptLabel   *widget.Label
 }
 
 // NewUI creates the main application UI
@@ -1616,15 +1616,15 @@ func (ui *UI) listItemCreate() fyne.CanvasObject {
 	// Store widget references
 	ui.widgetsMutex.Lock()
 	ui.listWidgets[len(ui.listWidgets)] = &listItemWidgets{
-		Container:        item,
-		selectBtn:        selectBtn,
-		thumb:            thumb,
-		filenameLabel:    filenameLabel,
-		dimensionsLabel:  dimensionsLabel,
-		stateLabel:       stateLabel,
-		progress:         progress,
-		openBtn:          openBtn,
-		retryBtn:         retryBtn,
+		Container:       item,
+		selectBtn:       selectBtn,
+		thumb:           thumb,
+		filenameLabel:   filenameLabel,
+		dimensionsLabel: dimensionsLabel,
+		stateLabel:      stateLabel,
+		progress:        progress,
+		openBtn:         openBtn,
+		retryBtn:        retryBtn,
 	}
 	ui.widgetsMutex.Unlock()
 

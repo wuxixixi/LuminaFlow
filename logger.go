@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -65,11 +66,11 @@ func ParseLogLevel(s string) LogLevel {
 
 // Logger provides logging functionality with colored console output
 type Logger struct {
-	file      *os.File
-	logger    *log.Logger
-	level     LogLevel
-	useColor  bool
-	mu        sync.Mutex
+	file     *os.File
+	logger   *log.Logger
+	level    LogLevel
+	useColor bool
+	mu       sync.Mutex
 }
 
 var appLogger *Logger
@@ -212,23 +213,10 @@ func logMessage(level LogLevel, format string, args ...interface{}) {
 }
 
 // stripANSI removes ANSI color codes from a string
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
 func stripANSI(s string) string {
-	var result strings.Builder
-	inEscape := false
-	for _, r := range s {
-		if r == '\033' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if r == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-		result.WriteRune(r)
-	}
-	return result.String()
+	return ansiRegex.ReplaceAllString(s, "")
 }
 
 // Info logs an info message

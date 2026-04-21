@@ -1,7 +1,7 @@
 # LuminaFlow 构建脚本
 
 # 版本号
-VERSION = 1.2.0
+VERSION = 1.4.3
 
 # Windows 构建 (CLI)
 build-windows:

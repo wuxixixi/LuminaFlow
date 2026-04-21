@@ -20,11 +20,11 @@ import (
 
 // Image validation constants
 const (
-	MinShortSide    = 300
-	MaxFileSize     = 20 * 1024 * 1024 // 20MB
-	MinAspectRatio  = 0.4              // 2:5
-	MaxAspectRatio  = 2.5              // 5:2
-	MaxImagePixels  = 50 * 1000 * 1000 // 50 megapixels limit for decoding
+	MinShortSide   = 300
+	MaxFileSize    = 20 * 1024 * 1024 // 20MB
+	MinAspectRatio = 0.4              // 2:5
+	MaxAspectRatio = 2.5              // 5:2
+	MaxImagePixels = 50 * 1000 * 1000 // 50 megapixels limit for decoding
 )
 
 // placeholderImage is a cached placeholder image
@@ -81,13 +81,13 @@ func GetPlaceholderImage() image.Image {
 
 // ImageInfo holds validated image information
 type ImageInfo struct {
-	Path      string
-	Filename  string
-	Width     int
-	Height    int
-	Size      int64
-	Format    string
-	Base64    string // Base64 encoded image with data URI prefix
+	Path     string
+	Filename string
+	Width    int
+	Height   int
+	Size     int64
+	Format   string
+	Base64   string // Base64 encoded image with data URI prefix
 }
 
 // SupportedFormats lists the allowed image extensions

@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	BaseURL           = "https://www.dmxapi.cn"
-	SubmitEndpoint    = "/v1/video_generation"
-	QueryEndpoint     = "/v1/query/video_generation"
-	RetrieveEndpoint  = "/v1/files/retrieve"
-	BalanceEndpoint   = "/api/user/self"
+	BaseURL              = "https://www.dmxapi.cn"
+	SubmitEndpoint       = "/v1/video_generation"
+	QueryEndpoint        = "/v1/query/video_generation"
+	RetrieveEndpoint     = "/v1/files/retrieve"
+	BalanceEndpoint      = "/api/user/self"
 	TokenBalanceEndpoint = "/api/token/key/"
 
 	// Polling configuration
@@ -145,6 +145,7 @@ func (c *APIClient) doRequest(ctx context.Context, method, endpoint string, body
 
 		req.Header.Set("Authorization", c.APIKey)
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "LuminaFlow/"+AppVersion)
 
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
@@ -428,15 +429,15 @@ func (c *APIClient) ConvertImageToVideo(ctx context.Context, imageBase64, prompt
 // BalanceResponse represents the API balance response
 type BalanceResponse struct {
 	Data struct {
-		ID           int     `json:"id"`
-		Username     string  `json:"username"`
-		Quota        int64   `json:"quota"`
-		UsedQuota    int64   `json:"used_quota"`
-		BonusQuota   int64   `json:"bonus_quota"`
-		TopupAmount  float64 `json:"topup_amount"`
-		DisplayName  string  `json:"display_name"`
-		Email        string  `json:"email"`
-		Level        string  `json:"level"`
+		ID          int     `json:"id"`
+		Username    string  `json:"username"`
+		Quota       int64   `json:"quota"`
+		UsedQuota   int64   `json:"used_quota"`
+		BonusQuota  int64   `json:"bonus_quota"`
+		TopupAmount float64 `json:"topup_amount"`
+		DisplayName string  `json:"display_name"`
+		Email       string  `json:"email"`
+		Level       string  `json:"level"`
 	} `json:"data"`
 	Message string `json:"message"`
 	Success bool   `json:"success"`
@@ -485,6 +486,7 @@ func (c *APIClient) GetBalance(ctx context.Context, systemToken, userID string) 
 	req.Header.Set("Authorization", systemToken)
 	req.Header.Set("Rix-Api-User", userID)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "LuminaFlow/"+AppVersion)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -539,6 +541,7 @@ func (c *APIClient) GetTokenBalance(ctx context.Context, systemToken, userID str
 	// Token balance query requires Authorization, Rix-Api-User headers
 	req.Header.Set("Authorization", systemToken)
 	req.Header.Set("Rix-Api-User", userID)
+	req.Header.Set("User-Agent", "LuminaFlow/"+AppVersion)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -616,6 +619,7 @@ func (c *APIClient) ChatCompletion(ctx context.Context, messages []ChatCompletio
 
 	req.Header.Set("Authorization", c.APIKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "LuminaFlow/"+AppVersion)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

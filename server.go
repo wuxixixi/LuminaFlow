@@ -8,9 +8,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -39,25 +41,25 @@ type APITask struct {
 
 // APIRequest structures
 type ConvertRequest struct {
-	ImagePath string `json:"image_path"`      // Local file path
-	ImageBase64 string `json:"image_base64"`  // Base64 encoded image (alternative to ImagePath)
-	Filename   string `json:"filename"`       // Required if ImageBase64 is provided
-	Prompt     string `json:"prompt"`         // Optional, uses default if empty
-	Duration   int    `json:"duration"`       // Optional, uses default if 0
-	Resolution string `json:"resolution"`     // Optional, uses default if empty
-	OutputDir  string `json:"output_dir"`     // Optional, uses default if empty
+	ImagePath   string `json:"image_path"`   // Local file path
+	ImageBase64 string `json:"image_base64"` // Base64 encoded image (alternative to ImagePath)
+	Filename    string `json:"filename"`     // Required if ImageBase64 is provided
+	Prompt      string `json:"prompt"`       // Optional, uses default if empty
+	Duration    int    `json:"duration"`     // Optional, uses default if 0
+	Resolution  string `json:"resolution"`   // Optional, uses default if empty
+	OutputDir   string `json:"output_dir"`   // Optional, uses default if empty
 }
 
 type BatchConvertRequest struct {
-	Images     []ConvertRequest `json:"images"`
-	Concurrency int             `json:"concurrency"` // Optional, uses default if 0
+	Images      []ConvertRequest `json:"images"`
+	Concurrency int              `json:"concurrency"` // Optional, uses default if 0
 }
 
 type ConvertResponse struct {
-	Success bool      `json:"success"`
-	TaskID  string    `json:"task_id,omitempty"`
-	Message string    `json:"message,omitempty"`
-	Error   string    `json:"error,omitempty"`
+	Success bool   `json:"success"`
+	TaskID  string `json:"task_id,omitempty"`
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 type TaskStatusResponse struct {
@@ -90,7 +92,7 @@ func NewAPIServer(config *Config, port int) *APIServer {
 	}
 }
 
-// Start begins the API server
+// Start begins the API server with graceful shutdown
 func (s *APIServer) Start() error {
 	r := mux.NewRouter()
 
@@ -131,6 +133,16 @@ func (s *APIServer) Start() error {
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
+
+	// Graceful shutdown setup
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-stop
+		Info("Shutting down API server...")
+		s.server.Shutdown(context.Background())
+	}()
 
 	Info("API server starting on %s", addr)
 	return s.server.ListenAndServe()
@@ -336,7 +348,7 @@ func (s *APIServer) handleBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
+		"success":  true,
 		"task_ids": taskIDs,
 		"total":    len(taskIDs),
 		"message":  fmt.Sprintf("Submitted %d tasks", len(taskIDs)),
@@ -613,7 +625,7 @@ func generateTaskID() string {
 // StartAPIServer starts the API server (for CLI mode)
 func StartAPIServer(config *Config, port int) error {
 	server := NewAPIServer(config, port)
-	
+
 	// Ensure output directory exists
 	if err := config.EnsureOutputDir(); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)
@@ -691,10 +703,10 @@ func (s *APIServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Submit convert task
 	req := ConvertRequest{
-		ImagePath:   tempFile.Name(),
-		Prompt:      prompt,
-		Duration:    duration,
-		Resolution:  resolution,
+		ImagePath:  tempFile.Name(),
+		Prompt:     prompt,
+		Duration:   duration,
+		Resolution: resolution,
 	}
 
 	taskID := s.submitConvertTask(req)
