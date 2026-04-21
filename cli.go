@@ -85,6 +85,16 @@ func (cli *CLIUI) Run() error {
 	}
 	fmt.Println()
 
+	// Ask for confirmation before processing
+	fmt.Print("确认开始转换? (y/n): ")
+	var confirm string
+	fmt.Scanln(&confirm)
+	if confirm != "y" && confirm != "Y" {
+		fmt.Println("已取消操作")
+		return nil
+	}
+	fmt.Println()
+
 	// Process images
 	cli.processImages(images)
 
@@ -253,6 +263,22 @@ func RunCLI(config *Config) error {
 
 	if len(images) == 0 {
 		return fmt.Errorf("没有找到图片文件，请将图片放入 data 目录")
+	}
+
+	// Show images first
+	fmt.Printf("找到 %d 个图片文件:\n", len(images))
+	for _, img := range images {
+		fmt.Printf("  - %s (%dx%d)\n", img.Filename, img.Width, img.Height)
+	}
+	fmt.Println()
+
+	// Ask for confirmation
+	fmt.Print("确认开始转换? (y/n): ")
+	var confirm string
+	fmt.Scanln(&confirm)
+	if confirm != "y" && confirm != "Y" {
+		fmt.Println("已取消操作")
+		return nil
 	}
 
 	processor := NewProcessor(config)
